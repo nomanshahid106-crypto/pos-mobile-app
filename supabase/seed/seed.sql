@@ -1,0 +1,10 @@
+-- DEV SEED ONLY — never run against production with real businesses.
+-- Run AFTER creating a dev user in Supabase Auth dashboard and signing in once
+-- (which creates the profile), then set @owner below via psql variable or edit.
+-- Example: psql -v owner_id='<auth-user-uuid>' -f seed.sql  (wrap in a DO block if preferred)
+-- This file documents demo data shape; the app itself works with zero seed data:
+-- sign up -> Create Store -> add categories/products in-app.
+-- Categories/products can also be inserted once you know your store id:
+-- insert into categories(store_id,name) values ('<store-id>','Groceries'),('<store-id>','Beverages');
+-- insert into products(store_id,category_id,name,sku,barcode,selling_price,cost_price,stock_quantity,low_stock_threshold)
+-- values ('<store-id>', null, 'Demo Rice 1kg','SKU-001','8900001', 4.99, 3.20, 50, 5);
