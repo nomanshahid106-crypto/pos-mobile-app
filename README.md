@@ -1,4 +1,4 @@
-# POS Pro — React Native + Supabase Point of Sale
+# Counterly — React Native + Supabase Point of Sale
 
 A production-oriented POS app for retail, grocery, clothing, pharmacies and small
 businesses. Real Supabase backend — no mock data as a permanent source. Checkout,
