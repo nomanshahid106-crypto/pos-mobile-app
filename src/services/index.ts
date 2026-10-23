@@ -74,7 +74,7 @@ export const salesService = {
     p_amount_received: input.amountReceived ?? null, p_external_reference: input.externalReference ?? null,
   })),
   list: async (storeId: string, filters: { search?: string; from?: string; to?: string; cashierId?: string; method?: string; status?: string } = {}) => {
-    let q = supabase.from('sales').select('*, payments(*)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(200);
+    let q = supabase.from('sales').select('*, payments(*), sale_items(product_name, quantity)').eq('store_id', storeId).order('created_at', { ascending: false }).limit(200);
     if (filters.search) q = q.ilike('receipt_number', `%${filters.search}%`);
     if (filters.from) q = q.gte('created_at', filters.from);
     if (filters.to) q = q.lte('created_at', filters.to);

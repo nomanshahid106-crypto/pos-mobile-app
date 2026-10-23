@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, FlatList, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, Chip, EmptyState, ErrorBox, Field, Loading, Screen, Sub, Title, useC } from '@/components/ui';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ACCENT, Button, Card, Chip, EmptyState, ErrorBox, Field, Loading, NAVY, Screen, SearchBar, Sub, Title, TopBar, fieldFill, useC } from '@/components/ui';
 import { categoryService, inventoryService, productService } from '@/services';
 import { useSession } from '@/store/appStore';
 import { formatMoney, isLowStock, toCents } from '@/lib/money';
@@ -16,32 +17,98 @@ const canEdit = (role: string | null) => role === 'owner' || role === 'manager';
 export function ProductListScreen() {
   const storeId = useSession((s) => s.store?.id) ?? ''; const role = useSession((s) => s.role);
   const settings = useSession((s) => s.settings); const currency = settings?.currency ?? 'USD';
-  const [search, setSearch] = useState(''); const [cat, setCat] = useState<string | null>(null); const [stock, setStock] = useState<'all' | 'low' | 'out'>('all'); const [sort, setSort] = useState<'name' | 'price' | 'stock'>('name');
+  const [search, setSearch] = useState(''); const [cat, setCat] = useState<string | null>(null); const [stock, setStock] = useState<'all' | 'low' | 'out'>('all'); const [sort, setSort] = useState<'name' | 'price' | 'stock'>('price');
   const cats = useQuery({ queryKey: ['cats', storeId], enabled: !!storeId, queryFn: () => categoryService.list(storeId) });
   const products = useQuery({ queryKey: ['products', storeId, search, cat, stock], enabled: !!storeId, queryFn: () => productService.list(storeId, { search, categoryId: cat, stock }) });
+  const allProducts = useQuery({ queryKey: ['products-all', storeId], enabled: !!storeId, queryFn: () => productService.list(storeId, {}) });
   const sorted = useMemo(() => [...(products.data ?? [])].sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : sort === 'price' ? a.selling_price - b.selling_price : a.stock_quantity - b.stock_quantity), [products.data, sort]);
   const c = useC();
+  const all = allProducts.data ?? [];
+  const lowCount = all.filter((p) => isLowStock(p.stock_quantity, p.low_stock_threshold) && p.stock_quantity > 0).length;
+  const outCount = all.filter((p) => p.stock_quantity <= 0).length;
+  const lowItems = all.filter((p) => isLowStock(p.stock_quantity, p.low_stock_threshold));
+  const totalValue = all.reduce((s, p) => s + toCents(p.selling_price) * p.stock_quantity, 0);
+  const sortLabel = sort === 'price' ? 'Price' : sort === 'name' ? 'Name' : 'Stock';
   return (
     <Screen>
-      <Title>Products</Title>
-      <Field label="Search" placeholder="Name, SKU or barcode" value={search} onChangeText={setSearch} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+      <TopBar title="Products" icon="package-variant-closed" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 25, fontWeight: '800', color: c.text }}>Products</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E', marginRight: 5 }} />
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: '#12805C' }}>Live Synced</Text>
+        </View>
+      </View>
+      <Text style={{ fontSize: 12.5, color: c.sub, marginTop: 5 }}>{all.length} Products • Total Value {formatMoney(totalValue, currency)}</Text>
+      <SearchBar value={search} onChange={setSearch} placeholder="Name, SKU or barcode" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
         <Chip label="All categories" active={!cat} onPress={() => setCat(null)} />
         {(cats.data ?? []).map((x) => <Chip key={x.id} label={x.name} active={cat === x.id} onPress={() => setCat(x.id)} />)}
       </ScrollView>
-      <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-        <Chip label="All stock" active={stock === 'all'} onPress={() => setStock('all')} /><Chip label="Low" active={stock === 'low'} onPress={() => setStock('low')} /><Chip label="Out" active={stock === 'out'} onPress={() => setStock('out')} />
-        <Chip label={`Sort: ${sort}`} onPress={() => setSort(sort === 'name' ? 'price' : sort === 'price' ? 'stock' : 'name')} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
+        <Chip label="All stock" active={stock === 'all'} onPress={() => setStock('all')} /><Chip label={`Low (${lowCount})`} active={stock === 'low'} onPress={() => setStock('low')} /><Chip label={`Out (${outCount})`} active={stock === 'out'} onPress={() => setStock('out')} />
+        <TouchableOpacity onPress={() => setSort(sort === 'name' ? 'price' : sort === 'price' ? 'stock' : 'name')} style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
+          <Ionicons name="swap-vertical" size={15} color={c.sub} />
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: c.sub, marginLeft: 4 }}>Sort: {sortLabel}</Text>
+        </TouchableOpacity>
       </View>
       {!!products.error && <ErrorBox message={(products.error as Error).message} />}
-      {canEdit(role) && <><Button title="+ Add product" onPress={() => router.push('/(tabs)/products/new')} /><Button title="Categories & inventory" variant="ghost" onPress={() => router.push('/(tabs)/products/categories')} /></>}
+      {canEdit(role) && (
+        <View style={{ flexDirection: 'row', marginVertical: 8 }}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/products/new')} style={{ flex: 1, backgroundColor: ACCENT, height: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+            <Ionicons name="add-circle-outline" size={19} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14.5, marginLeft: 7 }}>Add product</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/products/categories')} style={{ flex: 1, backgroundColor: NAVY, height: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="albums-outline" size={18} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14, marginLeft: 7 }}>Categories & Inventory</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, marginBottom: 2 }}>
+        <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 0.7, color: c.sub }}>CATALOG ITEMS ({sorted.length})</Text>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/products/inventory')}><Text style={{ fontSize: 12.5, fontWeight: '600', color: c.text }}>Batch Edit ›</Text></TouchableOpacity>
+      </View>
       {products.isLoading ? <Loading /> : (
         <FlatList data={sorted} keyExtractor={(p) => p.id} ListEmptyComponent={<EmptyState title="No products found" hint="Add a product or change your filters." />}
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => router.push(`/(tabs)/products/${item.id}`)}>
-              <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontWeight: '600', color: c.text, flex: 1 }}>{item.name}</Text><Text style={{ color: c.text }}>{formatMoney(toCents(item.selling_price), currency)}</Text></View>
-                <Sub>SKU {item.sku ?? '—'} · Stock {item.stock_quantity}{isLowStock(item.stock_quantity, item.low_stock_threshold) ? ' · ⚠ Low stock' : ''}</Sub></Card>
-            </TouchableOpacity>)} />)}
+          ListFooterComponent={lowItems.length ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F4FB', borderRadius: 16, padding: 14, marginTop: 10 }}>
+              <MaterialCommunityIcons name="truck-outline" size={24} color={ACCENT} />
+              <View style={{ flex: 1, marginLeft: 11 }}>
+                <Text style={{ fontWeight: '700', color: c.text, fontSize: 14 }}>Auto-Stock Ordering</Text>
+                <Text style={{ color: c.sub, fontSize: 12, marginTop: 2 }}>{lowItems.length === 1 ? `${lowItems[0].name} needs reordering from distributor` : `${lowItems.length} items need reordering from distributor`}</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/products/inventory')} style={{ borderWidth: 1.2, borderColor: ACCENT, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#FFFFFF' }}>
+                <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 12.5 }}>Review</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          renderItem={({ item }) => {
+            const low = isLowStock(item.stock_quantity, item.low_stock_threshold);
+            const out = item.stock_quantity <= 0;
+            const pill = out ? { bg: '#FDECEC', fg: '#B42318', label: 'Out of Stock' } : low ? { bg: '#FDECEC', fg: '#B42318', label: '⚠ Low' } : { bg: '#E7F8EE', fg: '#12805C', label: 'In Stock' };
+            return (
+              <TouchableOpacity onPress={() => router.push(`/(tabs)/products/${item.id}`)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 16, padding: 12, marginVertical: 4 }}>
+                  {item.image_url ? <Image source={{ uri: item.image_url }} style={{ width: 46, height: 46, borderRadius: 12 }} /> : (
+                    <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: fieldFill(c), alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="image-outline" size={22} color="#94A3B8" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, marginLeft: 11 }}>
+                    <Text style={{ fontWeight: '700', color: c.text, fontSize: 14.5 }} numberOfLines={1}>{item.name}</Text>
+                    <Text style={{ color: c.sub, fontSize: 12, marginTop: 3 }}>SKU {item.sku ?? '—'} • Stock: {item.stock_quantity}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={{ backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: pill.fg }}>{pill.label}</Text>
+                    </View>
+                    <Text style={{ fontWeight: '800', color: c.text, fontSize: 14.5, marginTop: 5 }}>{formatMoney(toCents(item.selling_price), currency)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }} />)}
     </Screen>
   );
 }
@@ -129,7 +196,7 @@ export function CategoriesScreen() {
       <FlatList data={filtered} keyExtractor={(x) => x.id} ListEmptyComponent={<EmptyState title="No categories" />}
         renderItem={({ item }) => <Card><Text style={{ fontWeight: '600' }}>{item.name}</Text>
           <View style={{ flexDirection: 'row', gap: 16, marginTop: 6 }}>
-            <TouchableOpacity onPress={async () => { const name = await new Promise<string | null>((res) => { Alert.prompt?.('Rename category', 'New name', [{ text: 'Cancel', onPress: () => res(null) }, { text: 'Save', onPress: (t?: string) => res(t ?? null) }], 'plain-text', item.name); if (!Alert.prompt) res(null); }); if (name) { await categoryService.update(item.id, name); qc.invalidateQueries({ queryKey: ['cats'] }); } }}><Text style={{ color: '#2563EB' }}>Rename</Text></TouchableOpacity>
+            <TouchableOpacity onPress={async () => { const name = await new Promise<string | null>((res) => { Alert.prompt?.('Rename category', 'New name', [{ text: 'Cancel', onPress: () => res(null) }, { text: 'Save', onPress: (t?: string) => res(t ?? null) }], 'plain-text', item.name); if (!Alert.prompt) res(null); }); if (name) { await categoryService.update(item.id, name); qc.invalidateQueries({ queryKey: ['cats'] }); } }}><Text style={{ color: ACCENT }}>Rename</Text></TouchableOpacity>
             <TouchableOpacity onPress={() => Alert.alert('Delete category?', 'This is blocked if products still use it.', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { await categoryService.remove(item.id); qc.invalidateQueries({ queryKey: ['cats'] }); } catch (e) { setError((e as Error).message); } } }])}><Text style={{ color: '#DC2626' }}>Delete</Text></TouchableOpacity>
           </View></Card>} />
     </Screen>

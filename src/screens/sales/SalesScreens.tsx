@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Alert, FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, Chip, EmptyState, ErrorBox, Field, Loading, Screen, Sub, Title } from '@/components/ui';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ACCENT, Button, Card, Chip, EmptyState, ErrorBox, Field, Loading, Screen, SearchBar, Sub, Title, TopBar, fieldFill, useC } from '@/components/ui';
 import { salesService, settingsService } from '@/services';
 import { useSession } from '@/store/appStore';
 import { formatMoney, toCents } from '@/lib/money';
 import { printReceipt, receiptText, shareReceipt, type ReceiptData } from '@/lib/receipt';
 
-interface SaleRow { id: string; receipt_number: string; created_at: string; total: number; status: string; payments?: { method: string }[]; }
+interface SaleRow { id: string; receipt_number: string; created_at: string; total: number; status: string; payments?: { method: string }[]; sale_items?: { product_name: string; quantity: number }[]; }
 interface SaleDetail extends SaleRow { subtotal: number; discount_amount: number; tax_amount: number; cashier_id: string; sale_items: { id: string; product_name: string; quantity: number; unit_price: number; line_total: number; refunded_quantity: number }[]; payments: { method: string; amount_received: number | null; change_due: number | null }[]; }
 
 async function buildReceipt(saleId: string, storeName: string, currency: string, footer: string, address?: string | null, phone?: string | null): Promise<{ receipt: ReceiptData; detail: SaleDetail }> {
@@ -19,20 +20,142 @@ async function buildReceipt(saleId: string, storeName: string, currency: string,
 
 export function SalesListScreen() {
   const storeId = useSession((s) => s.store?.id) ?? ''; const settings = useSession((s) => s.settings); const currency = settings?.currency ?? 'USD';
-  const [search, setSearch] = useState(''); const [status, setStatus] = useState<string>(''); const [method, setMethod] = useState<string>('');
-  const sales = useQuery({ queryKey: ['sales', storeId, search, status, method], enabled: !!storeId, queryFn: () => salesService.list(storeId, { search, status, method }) as unknown as Promise<SaleRow[]> });
+  const c = useC();
+  const [search, setSearch] = useState(''); const [status, setStatus] = useState<string>(''); const [method, setMethod] = useState<string>(''); const [range, setRange] = useState<'today' | 'all'>('all');
+  const from = range === 'today' ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString() : undefined;
+  const sales = useQuery({ queryKey: ['sales', storeId, search, status, method, range], enabled: !!storeId, queryFn: () => salesService.list(storeId, { search, status, method, from }) as unknown as Promise<SaleRow[]> });
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+  const today = useQuery({ queryKey: ['sales-today', storeId], enabled: !!storeId, queryFn: () => salesService.list(storeId, { from: todayStart }) as unknown as Promise<SaleRow[]> });
+  const allSales = useQuery({ queryKey: ['sales-all', storeId], enabled: !!storeId, queryFn: () => salesService.list(storeId, {}) as unknown as Promise<SaleRow[]> });
+  const todayRows = (today.data ?? []).filter((s) => s.status !== 'refunded');
+  const todayTotal = todayRows.reduce((sum, s) => sum + Number(s.total), 0);
+  const byMethod = (m: string) => todayRows.filter((s) => (s.payments?.[0]?.method ?? 'cash') === m).reduce((sum, s) => sum + Number(s.total), 0);
+  const cashTotal = byMethod('cash'); const cardTotal = byMethod('card_manual') + byMethod('other');
+  const exportCsv = () => {
+    const rows = sales.data ?? [];
+    if (!rows.length) { Alert.alert('Nothing to export', 'No sales match the current filters.'); return; }
+    const csv = ['Receipt,Date,Status,Total,Method', ...rows.map((s) => [s.receipt_number, new Date(s.created_at).toISOString(), s.status, String(s.total), s.payments?.[0]?.method ?? ''].join(','))].join('\n');
+    Share.share({ message: csv, title: 'Sales export' });
+  };
+  const statusPill = (st: string) => st === 'completed'
+    ? { bg: '#E7F8EE', fg: '#12805C', dot: '#22C55E', label: 'Completed' }
+    : st === 'refunded' ? { bg: '#FDECEC', fg: '#B42318', dot: '#EF4444', label: 'Refunded' }
+    : { bg: '#FEF6E0', fg: '#9A6B00', dot: '#F59E0B', label: 'Partial' };
   return (
     <Screen>
-      <Title>Sales history</Title>
-      <Field label="Search receipt #" value={search} onChangeText={setSearch} placeholder="R-2024…" />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        <Chip label="All statuses" active={!status} onPress={() => setStatus('')} /><Chip label="Completed" active={status === 'completed'} onPress={() => setStatus('completed')} /><Chip label="Refunded" active={status === 'refunded'} onPress={() => setStatus('refunded')} /><Chip label="Partial refund" active={status === 'partially_refunded'} onPress={() => setStatus('partially_refunded')} />
-        <Chip label="Cash only" active={method === 'cash'} onPress={() => setMethod(method === 'cash' ? '' : 'cash')} /><Chip label="Card only" active={method === 'card_manual'} onPress={() => setMethod(method === 'card_manual' ? '' : 'card_manual')} />
+      <TopBar title="Sales" icon="script-text-outline" />
+      <View style={{ backgroundColor: '#E8F4FB', borderRadius: 20, padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', letterSpacing: 0.7, color: c.sub }}>SHIFT PERFORMANCE</Text>
+          <View style={{ backgroundColor: '#CDEEDD', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginLeft: 10 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#0B6B43' }}>Register Active</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
+            <Ionicons name="sync" size={13} color={c.sub} />
+            <Text style={{ fontSize: 11.5, color: c.sub, marginLeft: 4 }}>Live Synced</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ fontSize: 27, fontWeight: '800', color: c.text, marginTop: 8 }}>{formatMoney(toCents(todayTotal), currency)}</Text>
+            <Text style={{ fontSize: 12, color: c.sub, marginTop: 3 }}>Total Sales today · {todayRows.length} transactions closed</Text>
+          </View>
+          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialCommunityIcons name="cash-register" size={25} color={ACCENT} />
+          </View>
+        </View>
+      </View>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search receipt # or customer..." />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 2 }}>
+        <Chip label={`All statuses`} active={!status} onPress={() => setStatus('')} />
+        <Chip label="● Completed" active={status === 'completed'} onPress={() => setStatus('completed')} />
+        <Chip label="Refunded" active={status === 'refunded'} onPress={() => setStatus('refunded')} />
+        <Chip label="Partial" active={status === 'partially_refunded'} onPress={() => setStatus('partially_refunded')} />
+      </ScrollView>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
+        <TouchableOpacity onPress={() => setMethod(method === '' ? 'cash' : method === 'cash' ? 'card_manual' : '')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '500', color: c.text }}>{method === 'cash' ? 'Cash only' : method === 'card_manual' ? 'Card only' : 'All methods'}</Text>
+          <Ionicons name="chevron-down" size={14} color={c.sub} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setRange(range === 'today' ? 'all' : 'today')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}>
+          <Text style={{ fontSize: 13, fontWeight: '500', color: c.text }}>{range === 'today' ? 'Today' : 'All time'}</Text>
+          <Ionicons name="chevron-down" size={14} color={c.sub} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={exportCsv} style={{ marginLeft: 'auto', padding: 6 }} accessibilityLabel="Export sales as CSV">
+          <Ionicons name="download-outline" size={20} color={c.text} />
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
+        <Text style={{ fontSize: 15.5, fontWeight: '700', color: c.text }}>Recent Transactions</Text>
+        <Text style={{ fontSize: 12, color: c.sub }}>Showing {sales.data?.length ?? 0} of {allSales.data?.length ?? 0}</Text>
       </View>
       {!!sales.error && <ErrorBox message={(sales.error as Error).message} />}
       {sales.isLoading ? <Loading /> : (
         <FlatList data={sales.data ?? []} keyExtractor={(s) => s.id} ListEmptyComponent={<EmptyState title="No sales found" hint="Completed sales appear here and are never hard-deleted." />}
-          renderItem={({ item }) => <TouchableOpacity onPress={() => router.push(`/(tabs)/sales/${item.id}`)}><Card><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ fontWeight: '600' }}>{item.receipt_number}</Text><Text>{formatMoney(toCents(item.total), currency)}</Text></View><Sub>{new Date(item.created_at).toLocaleString()} · {item.status}</Sub></Card></TouchableOpacity>} />)}
+          ListFooterComponent={(
+            <View style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 18, padding: 15, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="document-text-outline" size={19} color="#FFFFFF" />
+                  </View>
+                  <Text style={{ fontWeight: '700', color: c.text, fontSize: 14.5, marginLeft: 9 }}>Daily Register Summary</Text>
+                </View>
+                <TouchableOpacity onPress={() => Alert.alert('End of Day — Register Summary', `Cash drawer: ${formatMoney(toCents(cashTotal), currency)}\nCard terminal: ${formatMoney(toCents(cardTotal), currency)}\nNet Shift Balance: ${formatMoney(toCents(todayTotal), currency)}\nTransactions closed: ${todayRows.length}`)}>
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: ACCENT }}>End of Day →</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', marginTop: 13 }}>
+                <View style={{ flex: 1, backgroundColor: fieldFill(c), borderRadius: 13, padding: 12, marginRight: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}><Ionicons name="cash-outline" size={15} color={c.sub} /><Text style={{ fontSize: 12, color: c.sub, marginLeft: 5 }}>Cash drawer</Text></View>
+                  <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginTop: 5 }}>{formatMoney(toCents(cashTotal), currency)}</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: fieldFill(c), borderRadius: 13, padding: 12, marginLeft: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}><Ionicons name="card-outline" size={15} color={c.sub} /><Text style={{ fontSize: 12, color: c.sub, marginLeft: 5 }}>Card terminal</Text></View>
+                  <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginTop: 5 }}>{formatMoney(toCents(cardTotal), currency)}</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 13 }}>
+                <Text style={{ fontSize: 13, color: c.sub }}>Net Shift Balance</Text>
+                <Text style={{ fontWeight: '800', color: c.text, fontSize: 15.5 }}>{formatMoney(toCents(todayTotal), currency)}</Text>
+              </View>
+            </View>
+          )}
+          renderItem={({ item }) => {
+            const pill = statusPill(item.status);
+            const methodLabel = item.payments?.[0]?.method === 'card_manual' ? 'Card' : item.payments?.[0]?.method === 'other' ? 'Other' : 'Cash';
+            const first = item.sale_items?.[0];
+            const totalQty = (item.sale_items ?? []).reduce((sum, i) => sum + i.quantity, 0);
+            return (
+              <TouchableOpacity onPress={() => router.push(`/(tabs)/sales/${item.id}`)}>
+                <View style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 18, padding: 14, marginVertical: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontWeight: '700', color: c.text, fontSize: 14.5, flexShrink: 1 }} numberOfLines={1}>{item.receipt_number}</Text>
+                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: pill.dot, marginLeft: 9, marginRight: 4 }} />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: pill.fg }}>{pill.label}</Text>
+                    <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginLeft: 'auto' }}>{formatMoney(toCents(item.total), currency)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                    <Text style={{ color: c.sub, fontSize: 12 }}>{new Date(item.created_at).toLocaleString()}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3.5, marginLeft: 'auto' }}>
+                      <Ionicons name={methodLabel === 'Cash' ? 'cash-outline' : 'card-outline'} size={13} color={c.sub} />
+                      <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.text, marginLeft: 4 }}>{methodLabel}</Text>
+                    </View>
+                  </View>
+                  {!!first && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderRadius: 12, padding: 10, marginTop: 10 }}>
+                      <Ionicons name="cube-outline" size={17} color={ACCENT} />
+                      <View style={{ flex: 1, marginLeft: 9 }}>
+                        <Text style={{ fontWeight: '600', color: c.text, fontSize: 13 }} numberOfLines={1}>{first.product_name}</Text>
+                        <Text style={{ color: c.sub, fontSize: 11.5, marginTop: 1 }}>{totalQty} Item{totalQty === 1 ? '' : 's'} · Line 01{(item.sale_items?.length ?? 0) > 1 ? ` +${(item.sale_items?.length ?? 1) - 1} more` : ''}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={c.sub} />
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }} />)}
     </Screen>
   );
 }

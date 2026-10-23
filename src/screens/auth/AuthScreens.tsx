@@ -85,19 +85,65 @@ export function LoginScreen() {
 }
 
 export function RegisterScreen() {
+  const c = useC();
   const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(registerSchema), defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' } });
-  const onSubmit = handleSubmit(async (v) => { setError(''); try { const res = await authService.signUp(v.email.trim(), v.password, v.fullName.trim()) as unknown as { session?: unknown }; if (!res?.session) Alert.alert('Check your email', 'Confirm your email address, then sign in.'); } catch (e) { setError(friendlyError(e)); } });
+  const onSubmit = handleSubmit(async (v) => { if (!agreed) { setError('Please agree to the Staff Compliance Policy & Terminal Security Terms to continue.'); return; } setError(''); try { const res = await authService.signUp(v.email.trim(), v.password, v.fullName.trim()) as unknown as { session?: unknown }; if (!res?.session) Alert.alert('Check your email', 'Confirm your email address, then sign in.'); } catch (e) { setError(friendlyError(e)); } });
+  const fieldBg = c.input === '#FFFFFF' ? '#F1F6FB' : c.input;
+  const iconColor = '#94A3B8';
+  const renderField = (name: 'fullName' | 'email' | 'password' | 'confirmPassword', label: string, hint: string | undefined, icon: React.ReactNode, placeholder: string, opts: { secure?: boolean; show?: boolean; toggle?: () => void; keyboardType?: 'email-address'; autoCapitalize?: 'none' } = {}) => (
+    <View key={name}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 18 }}>
+        <Text style={{ fontSize: 15, fontWeight: '500', color: c.text }}>{label}</Text>
+        {!!hint && <Text style={{ fontSize: 12.5, color: c.sub }}>{hint}</Text>}
+      </View>
+      <Controller control={control} name={name} render={({ field: { onChange, onBlur, value } }) => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldBg, borderWidth: 1, borderColor: errors[name] ? c.danger : c.border, borderRadius: 12, height: 52, paddingHorizontal: 14 }}>
+          {icon}
+          <TextInput style={{ flex: 1, marginLeft: 10, fontSize: 15, color: c.text }} placeholder={placeholder} placeholderTextColor={c.sub} secureTextEntry={opts.secure && !opts.show} keyboardType={opts.keyboardType} autoCapitalize={opts.autoCapitalize} value={value} onChangeText={onChange} onBlur={onBlur} />
+          {opts.secure && <TouchableOpacity onPress={opts.toggle} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={opts.show ? 'Hide password' : 'Show password'}><Ionicons name={opts.show ? 'eye-outline' : 'eye-off-outline'} size={20} color={iconColor} /></TouchableOpacity>}
+        </View>
+      )} />
+      {!!errors[name]?.message && <Text style={{ color: c.danger, marginTop: 4, fontSize: 13 }}>{errors[name]?.message}</Text>}
+    </View>
+  );
   return (
-    <Screen><ScrollView keyboardShouldPersistTaps="handled">
-      <Title>Create account</Title>
-      {!!error && <ErrorBox message={error} />}
-      <Controller control={control} name="fullName" render={({ field: { onChange, value } }) => <Field label="Full name" value={value} onChangeText={onChange} error={errors.fullName?.message} />} />
-      <Controller control={control} name="email" render={({ field: { onChange, value } }) => <Field label="Email" autoCapitalize="none" keyboardType="email-address" value={value} onChangeText={onChange} error={errors.email?.message} />} />
-      <Controller control={control} name="password" render={({ field: { onChange, value } }) => <Field label="Password" secureTextEntry value={value} onChangeText={onChange} error={errors.password?.message} />} />
-      <Controller control={control} name="confirmPassword" render={({ field: { onChange, value } }) => <Field label="Confirm password" secureTextEntry value={value} onChangeText={onChange} error={errors.confirmPassword?.message} />} />
-      <Button title="Register" onPress={onSubmit} loading={isSubmitting} />
-      <Button title="Back to sign in" variant="ghost" onPress={() => router.back()} />
+    <Screen><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 32, paddingBottom: 24 }}>
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ width: 60, height: 60, borderRadius: 17, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }}>
+          <Ionicons name="person-add" size={29} color={SIGN_IN_ACCENT} />
+        </View>
+        <Text style={{ fontSize: 26, fontWeight: '800', color: c.text, marginTop: 18 }}>Create Account</Text>
+      </View>
+      <View style={{ backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border, paddingHorizontal: 18, paddingBottom: 20, marginTop: 22 }}>
+        {!!error && <ErrorBox message={error} />}
+        {renderField('fullName', 'Full Name', 'Required', <Ionicons name="person-outline" size={19} color={iconColor} />, 'Alex Turner')}
+        {renderField('email', 'Email', 'Terminal ID', <MaterialCommunityIcons name="at" size={20} color={iconColor} />, 'alex.turner@store.com', { keyboardType: 'email-address', autoCapitalize: 'none' })}
+        {renderField('password', 'Password', undefined, <Ionicons name="lock-closed-outline" size={19} color={iconColor} />, 'Create a password', { secure: true, show: showPw, toggle: () => setShowPw((s) => !s) })}
+        {renderField('confirmPassword', 'Confirm Password', undefined, <Ionicons name="shield-checkmark-outline" size={19} color={iconColor} />, 'Repeat your password', { secure: true, show: showConfirm, toggle: () => setShowConfirm((s) => !s) })}
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 20 }} onPress={() => setAgreed((a) => !a)} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
+          <View style={{ width: 20, height: 20, borderRadius: 5, marginTop: 1, backgroundColor: agreed ? SIGN_IN_ACCENT : 'transparent', borderWidth: agreed ? 0 : 1.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center' }}>
+            {agreed && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+          </View>
+          <Text style={{ marginLeft: 9, fontSize: 13.5, color: c.sub, flex: 1, lineHeight: 19 }}>I agree to the <Text style={{ color: SIGN_IN_ACCENT, fontWeight: '600' }}>Staff Compliance Policy</Text> &amp; <Text style={{ color: SIGN_IN_ACCENT, fontWeight: '600' }}>Terminal Security Terms</Text></Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onSubmit} disabled={isSubmitting} accessibilityRole="button" style={{ backgroundColor: SIGN_IN_ACCENT, opacity: isSubmitting ? 0.6 : 1, height: 54, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 22 }}>
+          {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : (<><Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Create Account</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" style={{ marginLeft: 8 }} /></>)}
+        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
+          <Text style={{ fontSize: 14, color: c.sub }}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.back()}><Text style={{ fontSize: 14, fontWeight: '700', color: SIGN_IN_ACCENT }}>Sign In</Text></TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ alignItems: 'center', marginTop: 26 }}>
+        <TouchableOpacity onPress={() => Alert.alert('How to use this terminal', 'Create your account with your name and store email, agree to the compliance policy, then sign in and set up your store.')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldBg, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 }}>
+          <Ionicons name="help-circle-outline" size={18} color={c.sub} />
+          <Text style={{ marginLeft: 6, fontSize: 13, color: c.sub }}><Text style={{ fontWeight: '600', color: c.text }}>Need help?</Text> How to use this terminal</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView></Screen>
   );
 }

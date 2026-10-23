@@ -3,7 +3,7 @@ import { ScrollView, Switch, Text, View } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
-import { Button, ErrorBox, Field, Screen, Sub, Title } from '@/components/ui';
+import { Button, ErrorBox, Field, Screen, Sub, Title, TopBar } from '@/components/ui';
 import { authService, settingsService } from '@/services';
 import { useSession } from '@/store/appStore';
 import { settingsSchema } from '@/validation/schemas';
@@ -22,6 +22,7 @@ export default function SettingsScreen() {
   useEffect(() => { if (store?.id) settingsService.get(store.id).then((s) => reset({ currency: s.currency, taxRatePercent: Number(s.tax_rate) * 100, defaultLowStockThreshold: s.default_low_stock_threshold, cashierMaxDiscountPercent: Number(s.cashier_max_discount_percent), maxDiscountPercent: Number(s.max_discount_percent), receiptFooter: s.receipt_footer, allowNegativeStock: s.allow_negative_stock })).catch((e) => setError((e as Error).message)); }, [store?.id]);
   return (
     <Screen><ScrollView keyboardShouldPersistTaps="handled">
+      <TopBar title="Settings" icon="cog-outline" />
       <Title>Store settings</Title><Sub>{store?.name} · Your role: {role}</Sub>
       {!!error && <ErrorBox message={error} />}{!!msg && <Sub>{msg}</Sub>}
       <Field label="Store name" value={storeName} onChangeText={setStoreName} editable={role === 'owner'} />

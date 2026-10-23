@@ -1,8 +1,48 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View, type TextInputProps, type ViewProps } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, type TextInputProps, type ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { radius, spacing, usePalette, type Palette } from '@/theme/theme';
+
+export const ACCENT = '#0A9BD8';
+export const NAVY = '#0A2540';
+export const fieldFill = (c: Palette) => (c.input === '#FFFFFF' ? '#F1F6FB' : c.input);
+
+export function TopBar({ title, icon }: { title: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }) {
+  const c = useC();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <MaterialCommunityIcons name={icon} size={21} color={ACCENT} />
+        <Text style={{ fontSize: 17, fontWeight: '700', color: c.text, marginLeft: 7 }}>{title}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => Alert.alert('Notifications', 'No new notifications.')} style={{ marginRight: 14 }} accessibilityLabel="Notifications">
+          <Ionicons name="notifications-outline" size={22} color={c.text} />
+          <View style={{ position: 'absolute', top: 1, right: 1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/settings/profile')} accessibilityLabel="My profile">
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="person" size={18} color="#FFFFFF" />
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+export function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (t: string) => void; placeholder: string }) {
+  const c = useC();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderWidth: 1, borderColor: c.border, borderRadius: 12, height: 48, paddingHorizontal: 13, marginVertical: 6 }}>
+      <Ionicons name="search" size={19} color="#94A3B8" />
+      <TextInput style={{ flex: 1, marginLeft: 9, fontSize: 15, color: c.text }} placeholder={placeholder} placeholderTextColor={c.sub} value={value} onChangeText={onChange} />
+      {!!value && <TouchableOpacity onPress={() => onChange('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Clear search"><Ionicons name="close" size={18} color="#94A3B8" /></TouchableOpacity>}
+    </View>
+  );
+}
 
 export const useC = () => usePalette(useColorScheme() === 'dark');
 
@@ -30,7 +70,7 @@ export function Field({ label, error, ...props }: TextInputProps & { label: stri
     <View style={{ marginVertical: 6 }}>
       <Text style={{ color: c.text, fontWeight: '500', marginBottom: 4 }}>{label}</Text>
       <TextInput placeholderTextColor={c.sub} {...props}
-        style={{ borderWidth: 1, borderColor: error ? c.danger : c.border, backgroundColor: c.input, color: c.text, borderRadius: radius.md, padding: 12, fontSize: 16 }} />
+        style={{ borderWidth: 1, borderColor: error ? c.danger : c.border, backgroundColor: fieldFill(c), color: c.text, borderRadius: radius.md, padding: 12, fontSize: 16 }} />
       {!!error && <Text style={{ color: c.danger, marginTop: 4, fontSize: 13 }}>{error}</Text>}
     </View>
   );
