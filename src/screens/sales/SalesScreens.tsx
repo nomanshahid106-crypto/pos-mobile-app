@@ -21,7 +21,7 @@ async function buildReceipt(saleId: string, storeName: string, currency: string,
 export function SalesListScreen() {
   const storeId = useSession((s) => s.store?.id) ?? ''; const settings = useSession((s) => s.settings); const currency = settings?.currency ?? 'USD';
   const c = useC();
-  const [search, setSearch] = useState(''); const [status, setStatus] = useState<string>(''); const [method, setMethod] = useState<string>(''); const [range, setRange] = useState<'today' | 'all'>('all');
+  const [search, setSearch] = useState(''); const [status, setStatus] = useState<string>(''); const [method, setMethod] = useState<string>(''); const [range, setRange] = useState<'today' | 'all'>('today');
   const from = range === 'today' ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString() : undefined;
   const sales = useQuery({ queryKey: ['sales', storeId, search, status, method, range], enabled: !!storeId, queryFn: () => salesService.list(storeId, { search, status, method, from }) as unknown as Promise<SaleRow[]> });
   const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
@@ -44,45 +44,61 @@ export function SalesListScreen() {
   return (
     <Screen>
       <TopBar title="Sales" icon="script-text-outline" />
-      <View style={{ backgroundColor: '#E8F4FB', borderRadius: 20, padding: 16 }}>
+      <View style={{ backgroundColor: '#DCEAF8', borderRadius: 20, padding: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '700', letterSpacing: 0.7, color: c.sub }}>SHIFT PERFORMANCE</Text>
-          <View style={{ backgroundColor: '#CDEEDD', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginLeft: 10 }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', letterSpacing: 0.7, color: '#39597E' }}>SHIFT{'\n'}PERFORMANCE</Text>
+          <View style={{ backgroundColor: '#CDEEDD', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 10, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E', marginRight: 5 }} />
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#0B6B43' }}>Register Active</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 'auto' }}>
-            <Ionicons name="sync" size={13} color={c.sub} />
-            <Text style={{ fontSize: 11.5, color: c.sub, marginLeft: 4 }}>Live Synced</Text>
+            <Ionicons name="cloud-upload-outline" size={15} color="#39597E" />
+            <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#39597E', marginLeft: 4 }}>Live{'\n'}Synced</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <View>
-            <Text style={{ fontSize: 27, fontWeight: '800', color: c.text, marginTop: 8 }}>{formatMoney(toCents(todayTotal), currency)}</Text>
-            <Text style={{ fontSize: 12, color: c.sub, marginTop: 3 }}>Total Sales today · {todayRows.length} transactions closed</Text>
+            <Text style={{ fontSize: 27, fontWeight: '800', color: '#0E2A47', marginTop: 8 }}>{formatMoney(toCents(todayTotal), currency)}</Text>
+            <Text style={{ fontSize: 12, color: '#39597E', marginTop: 3 }}>Total Sales Today · {todayRows.length} transactions closed</Text>
           </View>
-          <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-            <MaterialCommunityIcons name="cash-register" size={25} color={ACCENT} />
+          <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialCommunityIcons name="cash-register" size={26} color="#0B5FA5" />
           </View>
         </View>
       </View>
-      <SearchBar value={search} onChange={setSearch} placeholder="Search receipt # or customer..." />
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}><SearchBar value={search} onChange={setSearch} placeholder="Search receipt # or customer..." /></View>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/pos')} accessibilityLabel="Scan barcode" style={{ width: 47, height: 47, borderRadius: 13, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', marginLeft: 9 }}>
+          <MaterialCommunityIcons name="barcode-scan" size={23} color={ACCENT} />
+        </TouchableOpacity>
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 2 }}>
-        <Chip label={`All statuses`} active={!status} onPress={() => setStatus('')} />
-        <Chip label="● Completed" active={status === 'completed'} onPress={() => setStatus('completed')} />
+        <TouchableOpacity onPress={() => setStatus('')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: !status ? '#0B5FA5' : c.card, borderWidth: 1, borderColor: !status ? '#0B5FA5' : c.border, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, marginRight: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: !status ? '#FFFFFF' : c.text }}>All statuses</Text>
+          <View style={{ minWidth: 19, height: 19, borderRadius: 10, backgroundColor: !status ? '#FFFFFF' : fieldFill(c), alignItems: 'center', justifyContent: 'center', marginLeft: 7, paddingHorizontal: 4 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: !status ? '#0B5FA5' : c.sub }}>{allSales.data?.length ?? 0}</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setStatus('completed')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: status === 'completed' ? '#0B5FA5' : c.card, borderWidth: 1, borderColor: status === 'completed' ? '#0B5FA5' : c.border, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, marginRight: 8 }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E', marginRight: 6 }} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: status === 'completed' ? '#FFFFFF' : c.text }}>Completed</Text>
+        </TouchableOpacity>
         <Chip label="Refunded" active={status === 'refunded'} onPress={() => setStatus('refunded')} />
         <Chip label="Partial" active={status === 'partially_refunded'} onPress={() => setStatus('partially_refunded')} />
       </ScrollView>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
-        <TouchableOpacity onPress={() => setMethod(method === '' ? 'cash' : method === 'cash' ? 'card_manual' : '')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8 }}>
+        <TouchableOpacity onPress={() => setMethod(method === '' ? 'cash' : method === 'cash' ? 'card_manual' : '')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8 }}>
+          <Ionicons name="wallet-outline" size={15} color={c.sub} style={{ marginRight: 5 }} />
           <Text style={{ fontSize: 13, fontWeight: '500', color: c.text }}>{method === 'cash' ? 'Cash only' : method === 'card_manual' ? 'Card only' : 'All methods'}</Text>
           <Ionicons name="chevron-down" size={14} color={c.sub} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setRange(range === 'today' ? 'all' : 'today')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}>
+        <TouchableOpacity onPress={() => setRange(range === 'today' ? 'all' : 'today')} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}>
+          <Ionicons name="calendar-outline" size={15} color={c.sub} style={{ marginRight: 5 }} />
           <Text style={{ fontSize: 13, fontWeight: '500', color: c.text }}>{range === 'today' ? 'Today' : 'All time'}</Text>
           <Ionicons name="chevron-down" size={14} color={c.sub} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={exportCsv} style={{ marginLeft: 'auto', padding: 6 }} accessibilityLabel="Export sales as CSV">
-          <Ionicons name="download-outline" size={20} color={c.text} />
+        <TouchableOpacity onPress={exportCsv} accessibilityLabel="Export sales as CSV" style={{ marginLeft: 'auto', width: 38, height: 38, borderRadius: 19, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="download-outline" size={18} color={c.text} />
         </TouchableOpacity>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
@@ -93,7 +109,7 @@ export function SalesListScreen() {
       {sales.isLoading ? <Loading /> : (
         <FlatList data={sales.data ?? []} keyExtractor={(s) => s.id} ListEmptyComponent={<EmptyState title="No sales found" hint="Completed sales appear here and are never hard-deleted." />}
           ListFooterComponent={(
-            <View style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 18, padding: 15, marginTop: 12 }}>
+            <View style={{ backgroundColor: '#DCEAF8', borderRadius: 18, padding: 15, marginTop: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }}>
@@ -106,11 +122,11 @@ export function SalesListScreen() {
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', marginTop: 13 }}>
-                <View style={{ flex: 1, backgroundColor: fieldFill(c), borderRadius: 13, padding: 12, marginRight: 6 }}>
+                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 13, padding: 12, marginRight: 6 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}><Ionicons name="cash-outline" size={15} color={c.sub} /><Text style={{ fontSize: 12, color: c.sub, marginLeft: 5 }}>Cash drawer</Text></View>
                   <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginTop: 5 }}>{formatMoney(toCents(cashTotal), currency)}</Text>
                 </View>
-                <View style={{ flex: 1, backgroundColor: fieldFill(c), borderRadius: 13, padding: 12, marginLeft: 6 }}>
+                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 13, padding: 12, marginLeft: 6 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}><Ionicons name="card-outline" size={15} color={c.sub} /><Text style={{ fontSize: 12, color: c.sub, marginLeft: 5 }}>Card terminal</Text></View>
                   <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginTop: 5 }}>{formatMoney(toCents(cardTotal), currency)}</Text>
                 </View>
@@ -131,25 +147,31 @@ export function SalesListScreen() {
                 <View style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 18, padding: 14, marginVertical: 5 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={{ fontWeight: '700', color: c.text, fontSize: 14.5, flexShrink: 1 }} numberOfLines={1}>{item.receipt_number}</Text>
-                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: pill.dot, marginLeft: 9, marginRight: 4 }} />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: pill.fg }}>{pill.label}</Text>
-                    <Text style={{ fontWeight: '800', color: c.text, fontSize: 15, marginLeft: 'auto' }}>{formatMoney(toCents(item.total), currency)}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: pill.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: pill.dot, marginRight: 4.5 }} />
+                      <Text style={{ fontSize: 11.5, fontWeight: '700', color: pill.fg }}>{pill.label}</Text>
+                    </View>
+                    <Text style={{ fontWeight: '800', color: c.text, fontSize: 15.5, marginLeft: 'auto' }}>{formatMoney(toCents(item.total), currency)}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                     <Text style={{ color: c.sub, fontSize: 12 }}>{new Date(item.created_at).toLocaleString()}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3.5, marginLeft: 'auto' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EAF1F8', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3.5, marginLeft: 'auto' }}>
                       <Ionicons name={methodLabel === 'Cash' ? 'cash-outline' : 'card-outline'} size={13} color={c.sub} />
                       <Text style={{ fontSize: 11.5, fontWeight: '600', color: c.text, marginLeft: 4 }}>{methodLabel}</Text>
                     </View>
                   </View>
                   {!!first && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: fieldFill(c), borderRadius: 12, padding: 10, marginTop: 10 }}>
-                      <Ionicons name="cube-outline" size={17} color={ACCENT} />
+                      <View style={{ width: 31, height: 31, borderRadius: 9, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="cube-outline" size={17} color={ACCENT} />
+                      </View>
                       <View style={{ flex: 1, marginLeft: 9 }}>
                         <Text style={{ fontWeight: '600', color: c.text, fontSize: 13 }} numberOfLines={1}>{first.product_name}</Text>
                         <Text style={{ color: c.sub, fontSize: 11.5, marginTop: 1 }}>{totalQty} Item{totalQty === 1 ? '' : 's'} · Line 01{(item.sale_items?.length ?? 0) > 1 ? ` +${(item.sale_items?.length ?? 1) - 1} more` : ''}</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color={c.sub} />
+                      <View style={{ width: 27, height: 27, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="chevron-forward" size={15} color={c.sub} />
+                      </View>
                     </View>
                   )}
                 </View>

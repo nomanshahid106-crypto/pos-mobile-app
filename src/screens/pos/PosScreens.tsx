@@ -8,6 +8,7 @@ import { ACCENT, Button, Card, Chip, EmptyState, ErrorBox, Field, Loading, Scree
 import { categoryService, newIdempotencyKey, productService, salesService } from '@/services';
 import { isSubmitting, setSubmitting, useCart, useSession } from '@/store/appStore';
 import { calculateTotals, canApplyDiscount, formatMoney, toCents, validateCart } from '@/lib/money';
+import { playScanBeep, preloadScanBeep } from '@/lib/scanSound';
 import type { PaymentMethod } from '@/types/database.types';
 
 export function PosScreen() {
@@ -16,6 +17,7 @@ export function PosScreen() {
   const [search, setSearch] = useState(''); const [cat, setCat] = useState<string | null>(null); const [scanning, setScanning] = useState(false);
   const [grid, setGrid] = useState(true); const [quick, setQuick] = useState(false); const [quickText, setQuickText] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
+  React.useEffect(() => { preloadScanBeep(); }, []);
   const cats = useQuery({ queryKey: ['cats', storeId], enabled: !!storeId, queryFn: () => categoryService.list(storeId) });
   const products = useQuery({ queryKey: ['pos-products', storeId, search, cat], enabled: !!storeId, queryFn: () => productService.list(storeId, { search, categoryId: cat }) });
   const cart = useCart();
@@ -144,7 +146,7 @@ export function PosScreen() {
       </ScrollView>
       <Modal visible={scanning} animationType="slide">
         <CameraView style={{ flex: 1 }} barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'code128', 'qr', 'upc_a', 'upc_e'] }}
-          onBarcodeScanned={async ({ data }) => { setScanning(false); const found = await productService.findByBarcode(storeId, data).catch(() => null); const p = found as unknown as { id: string; name: string; selling_price: number; stock_quantity: number } | null; if (p) cart.add({ productId: p.id, name: p.name, unitPriceCents: toCents(p.selling_price), stock: p.stock_quantity }); else Alert.alert('Not found', `No product with barcode ${data} in this store.`); }} />
+          onBarcodeScanned={async ({ data }) => { setScanning(false); const found = await productService.findByBarcode(storeId, data).catch(() => null); const p = found as unknown as { id: string; name: string; selling_price: number; stock_quantity: number } | null; if (p) { void playScanBeep(); cart.add({ productId: p.id, name: p.name, unitPriceCents: toCents(p.selling_price), stock: p.stock_quantity }); } else Alert.alert('Not found', `No product with barcode ${data} in this store.`); }} />
         <Button title="Close scanner" onPress={() => setScanning(false)} />
       </Modal>
     </Screen>
